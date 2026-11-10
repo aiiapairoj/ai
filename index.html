@@ -1,0 +1,344 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>BUGpairoj Virtual Office</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap">
+<style>
+/* Layout: fullscreen WebGL office, HUD overlay (top bar, left Agent Team, right SOC, bottom log ticker) */
+:root{--bg:#070B14;--fg:#E6ECF8;--muted:#8A96B3;--cyan:#22D3EE;--orange:#FB923C;--green:#4ADE80;--red:#F87171;--line:rgba(255,255,255,.09);--glass:rgba(10,16,30,.62);
+--display:"Prompt",sans-serif;--body:"Prompt",system-ui,sans-serif;--mono:"Prompt",sans-serif;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:var(--body);overflow:hidden}
+#gl{position:fixed;inset:0;display:block;touch-action:none}
+.hud{position:fixed;z-index:5;pointer-events:none}
+.panel{pointer-events:auto;background:var(--glass);backdrop-filter:blur(16px);border:1px solid var(--line);border-radius:16px}
+/* top bar */
+.top{top:env(safe-area-inset-top,0px);left:0;right:0;padding:12px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));display:flex;justify-content:space-between;gap:12px;align-items:center}
+.brand{display:flex;align-items:center;gap:10px;padding:8px 14px;font-family:var(--display);font-weight:700}
+.brand i{width:22px;height:22px;border-radius:6px;background:conic-gradient(from 200deg,var(--cyan),var(--orange),var(--cyan));box-shadow:0 0 14px var(--cyan)}
+.brand small{font-family:var(--mono);font-weight:400;font-size:.68rem;color:var(--muted);margin-left:4px}
+.cams{display:flex;gap:4px;padding:4px}
+.cams button{font-family:var(--body);font-size:.78rem;color:var(--muted);background:transparent;border:0;padding:7px 12px;border-radius:10px;cursor:pointer;transition:.2s;white-space:nowrap}
+.cams button.on,.cams button:hover{background:var(--cyan);color:#041018}
+.cams button:focus-visible{outline:2px solid var(--orange)}
+.clock{font-family:var(--mono);font-size:.74rem;padding:9px 14px;color:var(--cyan);display:flex;gap:8px;align-items:center}
+.clock b{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 1.4s infinite}
+@keyframes blink{50%{opacity:.25}}
+/* left: agents */
+.left{left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 72px);width:270px;padding:14px}
+.h{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);margin:0 0 10px;display:flex;justify-content:space-between}
+.agent{display:flex;gap:10px;align-items:center;padding:8px;border-radius:10px;cursor:pointer;transition:.2s;border:1px solid transparent}
+.agent:hover,.agent.sel{background:rgba(34,211,238,.08);border-color:rgba(34,211,238,.3)}
+.agent .av{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:.8rem;color:#041018;flex:none}
+.agent div{min-width:0;flex:1}
+.agent b{display:block;font-size:.84rem;font-weight:500}
+.agent span{display:block;font-family:var(--mono);font-size:.66rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar{height:3px;background:rgba(255,255,255,.08);border-radius:2px;margin-top:5px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--cyan);width:0;transition:width .6s}
+/* right: SOC */
+.right{right:max(16px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 72px);width:250px;padding:14px}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kpi{background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:10px;padding:9px 10px}
+.kpi b{display:block;font-family:var(--display);font-size:1.3rem;font-variant-numeric:tabular-nums;color:var(--cyan);line-height:1.1}
+.kpi b.warn{color:var(--orange)}.kpi b.bad{color:var(--red)}.kpi b.ok{color:var(--green)}
+.kpi span{font-size:.66rem;color:var(--muted)}
+.threat{margin-top:10px;font-family:var(--mono);font-size:.68rem;color:var(--muted)}
+.threat i{display:block;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--green),var(--orange),var(--red));margin-top:5px;position:relative}
+.threat i::after{content:"";position:absolute;top:-4px;left:var(--p,30%);width:3px;height:14px;background:#fff;border-radius:2px;box-shadow:0 0 8px #fff;transition:left 1s}
+/* bottom log */
+.bottom{left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));padding:10px 14px;font-family:var(--mono);font-size:.7rem;max-height:110px;overflow:hidden}
+.bottom .log div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);line-height:1.6}
+.bottom .log div:first-child{color:var(--fg)}
+.t{color:var(--cyan)}.ok{color:var(--green)}.wn{color:var(--orange)}.er{color:var(--red)}
+.hint{position:fixed;z-index:4;left:50%;transform:translateX(-50%);bottom:calc(136px + env(safe-area-inset-bottom,0px));font-size:.72rem;color:var(--muted);pointer-events:none;font-family:var(--mono);opacity:.8}
+.credit{position:fixed;z-index:5;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(136px + env(safe-area-inset-bottom,0px));font-size:.68rem;font-family:var(--mono)}
+.credit a{color:var(--cyan);text-decoration:none}
+/* tooltip */
+.tip{position:fixed;z-index:6;pointer-events:none;background:var(--glass);backdrop-filter:blur(12px);border:1px solid rgba(34,211,238,.4);border-radius:10px;padding:8px 12px;font-size:.78rem;transform:translate(-50%,-120%);opacity:0;transition:opacity .15s;white-space:nowrap}
+.tip b{display:block;font-family:var(--display);color:var(--cyan)}
+.tip span{font-family:var(--mono);font-size:.66rem;color:var(--muted)}
+@media (max-width:860px){.left,.right{width:200px}.right{display:none}.cams button{padding:6px 8px;font-size:.7rem}.brand small{display:none}.hint,.credit{display:none}}
+@media (max-width:560px){.left{display:none}.bottom{max-height:70px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<canvas id="gl"></canvas>
+
+<div class="hud top">
+  <div class="panel brand"><i></i>BUGpairoj<span style="color:var(--cyan)">.OFFICE</span><small>virtual HQ · พ.ศ. 2569</small></div>
+  <div class="panel cams" id="cams">
+    <button class="on" data-v="over">ภาพรวม</button><button data-v="dev">ห้อง Dev</button><button data-v="agent">Agent Team</button><button data-v="soc">SOC Control</button><button data-v="core">AI Core</button>
+  </div>
+  <div class="panel clock"><b></b><span id="clk">--:--:--</span></div>
+</div>
+
+<div class="hud left panel">
+  <p class="h">Agent Team <span id="agentsum" style="color:var(--green)">5 ACTIVE</span></p>
+  <div id="agents"></div>
+</div>
+
+<div class="hud right panel">
+  <p class="h">SOC · Live <span style="color:var(--cyan)">24×7</span></p>
+  <div class="kpis">
+    <div class="kpi"><b id="k1" class="ok">0</b><span>Events / sec</span></div>
+    <div class="kpi"><b id="k2" class="warn">0</b><span>Alerts open</span></div>
+    <div class="kpi"><b id="k3" class="bad">0</b><span>Blocked IP (24h)</span></div>
+    <div class="kpi"><b id="k4">99.98%</b><span>Uptime</span></div>
+  </div>
+  <div class="threat">THREAT LEVEL · <span id="tl">MODERATE</span><i id="tbar" style="--p:32%"></i></div>
+</div>
+
+<div class="hud bottom panel"><div class="log" id="log"></div></div>
+<div class="hint">ลากเพื่อหมุน · scroll เพื่อซูม · คลิกตัวละครเพื่อดูข้อมูล</div>
+<div class="credit"><a href="https://www.youtube.com/c/BUGpairoj">AI Pairoj — by BUGpairoj</a></div>
+<div class="tip" id="tip"><b></b><span></span></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const C={cyan:0x22D3EE,orange:0xFB923C,green:0x4ADE80,red:0xF87171,purple:0xA78BFA,pink:0xF472B6,yellow:0xFACC15};
+
+/* ================= renderer / scene ================= */
+const cv=document.getElementById('gl');
+const R=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+R.setPixelRatio(Math.min(devicePixelRatio,1.8));R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFSoftShadowMap;
+const S=new THREE.Scene();S.background=new THREE.Color(0x070B14);S.fog=new THREE.FogExp2(0x070B14,.018);
+const cam=new THREE.PerspectiveCamera(50,1,.1,300);
+
+S.add(new THREE.AmbientLight(0x3A4A6A,.9));
+const key=new THREE.DirectionalLight(0xBFE8F2,.55);key.position.set(10,25,10);key.castShadow=true;key.shadow.mapSize.set(2048,2048);
+Object.assign(key.shadow.camera,{left:-40,right:40,top:40,bottom:-40,far:80});S.add(key);
+function neon(c,x,y,z,i,d){const l=new THREE.PointLight(c,i,d);l.position.set(x,y,z);S.add(l);return l}
+neon(C.cyan,-14,7,0,1.4,30);neon(C.orange,0,8,-16,1.6,34);neon(C.purple,14,7,4,1.2,28);
+
+/* ---------- floor + grid ---------- */
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(90,70),new THREE.MeshStandardMaterial({color:0x0C1222,roughness:.85,metalness:.2}));
+floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;S.add(floor);
+const grid=new THREE.GridHelper(90,45,0x1A2A44,0x121C30);grid.position.y=.01;S.add(grid);
+// glowing floor lanes
+function lane(x,z,w,h,c){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:.35}));m.rotation.x=-Math.PI/2;m.position.set(x,.02,z);S.add(m);return m}
+lane(0,-2,.25,44,C.cyan);lane(0,-2,60,.25,C.cyan);
+
+/* ---------- canvas textures ---------- */
+function mkCanvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c}
+const screens=[];
+function codeScreen(w=512,h=320,hue='#7DD3FC'){
+  const c=mkCanvas(w,h),g=c.getContext('2d');const tex=new THREE.CanvasTexture(c);
+  const kw=['function','const','return','SELECT','WHERE','async','await','class','public','if','foreach','$pdo->prepare(','->execute(','import','=>','try','catch'];
+  const lines=[];let t=0;
+  function gen(){const n=4+Math.random()*7|0;let s='';for(let i=0;i<n;i++)s+=(Math.random()<.4?kw[Math.random()*kw.length|0]:Math.random().toString(36).slice(2,4+Math.random()*7|0))+' ';return s}
+  for(let i=0;i<22;i++)lines.push(gen());
+  const draw=()=>{t++;if(t%6===0){lines.shift();lines.push(gen())}
+    g.fillStyle='#050912';g.fillRect(0,0,w,h);g.fillStyle='#0F1A2E';g.fillRect(0,0,w,22);g.fillStyle=hue;g.font='600 12px Prompt, sans-serif';g.fillText('● app/Controller.php  — agent editing',10,15);
+    g.font='12px Prompt, sans-serif';lines.forEach((l,i)=>{g.fillStyle=i%5===0?'#FB923C':i%3===0?'#4ADE80':hue;g.globalAlpha=.55+.45*(i/lines.length);g.fillText((100+i).toString().padStart(3)+'  '+'  '.repeat(i%4)+l,8,40+i*13);});
+    g.globalAlpha=1;if(t%20<10){g.fillStyle='#fff';g.fillRect(8+(((t*7)%30)*7),h-18,7,12)}tex.needsUpdate=true};
+  screens.push(draw);draw();return tex}
+function mapScreen(w=1024,h=512){
+  const c=mkCanvas(w,h),g=c.getContext('2d');const tex=new THREE.CanvasTexture(c);const dots=[];for(let i=0;i<180;i++)dots.push([Math.random()*w,Math.random()*h*.8+h*.1,Math.random()]);
+  const blips=[];let t=0;
+  const draw=()=>{t++;g.fillStyle='#04070F';g.fillRect(0,0,w,h);g.strokeStyle='rgba(34,211,238,.12)';for(let x=0;x<w;x+=64){g.beginPath();g.moveTo(x,0);g.lineTo(x,h);g.stroke()}for(let y=0;y<h;y+=64){g.beginPath();g.moveTo(0,y);g.lineTo(w,y);g.stroke()}
+    dots.forEach(d=>{g.fillStyle=d[2]<.1?'#FB923C':'#22D3EE';g.globalAlpha=.6;g.fillRect(d[0],d[1],3,3)});g.globalAlpha=1;
+    if(t%25===0)blips.push({x:Math.random()*w,y:Math.random()*h,r:0,c:Math.random()<.3?'#F87171':'#22D3EE'});
+    for(let i=blips.length-1;i>=0;i--){const b=blips[i];b.r+=2;g.strokeStyle=b.c;g.globalAlpha=1-b.r/60;g.lineWidth=2;g.beginPath();g.arc(b.x,b.y,b.r,0,7);g.stroke();if(b.r>60)blips.splice(i,1)}
+    g.globalAlpha=1;g.fillStyle='#22D3EE';g.font='600 22px Prompt, sans-serif';g.fillText('GLOBAL THREAT MAP · BUGpairoj SOC',20,34);g.fillStyle='#8A96B3';g.font='14px Prompt, sans-serif';g.fillText('nodes: 180   live blips: '+blips.length+'   '+new Date().toLocaleTimeString('th-TH'),20,56);
+    // sweep
+    g.strokeStyle='rgba(74,222,128,.5)';g.lineWidth=3;const sx=(t*6)%w;g.beginPath();g.moveTo(sx,0);g.lineTo(sx,h);g.stroke();tex.needsUpdate=true};
+  screens.push(draw);draw();return tex}
+function chartScreen(title,color,w=512,h=320){
+  const c=mkCanvas(w,h),g=c.getContext('2d');const tex=new THREE.CanvasTexture(c);const data=Array.from({length:60},()=>30+Math.random()*50);
+  const draw=()=>{data.shift();data.push(Math.max(5,Math.min(95,data[data.length-1]+(Math.random()-.5)*20)));
+    g.fillStyle='#04070F';g.fillRect(0,0,w,h);g.fillStyle=color;g.font='600 16px Prompt, sans-serif';g.fillText(title,14,26);g.fillStyle='#8A96B3';g.font='12px Prompt, sans-serif';g.fillText('now: '+data[data.length-1].toFixed(1)+'  avg: '+(data.reduce((a,b)=>a+b)/data.length).toFixed(1),14,46);
+    g.strokeStyle='rgba(255,255,255,.08)';for(let y=70;y<h;y+=50){g.beginPath();g.moveTo(0,y);g.lineTo(w,y);g.stroke()}
+    g.beginPath();data.forEach((v,i)=>{const x=i/(data.length-1)*w,y=h-20-v/100*(h-90);i?g.lineTo(x,y):g.moveTo(x,y)});g.strokeStyle=color;g.lineWidth=3;g.stroke();
+    g.lineTo(w,h);g.lineTo(0,h);g.closePath();g.fillStyle=color;g.globalAlpha=.15;g.fill();g.globalAlpha=1;tex.needsUpdate=true};
+  screens.push(draw);draw();return tex}
+function logScreen(w=512,h=320){
+  const c=mkCanvas(w,h),g=c.getContext('2d');const tex=new THREE.CanvasTexture(c);const L=[];const src=['fortigate','wazuh','nginx','mysql','auth','proxmox','veeam'];const msg=['login ok','rule 42 matched','policy deny 10.0.4.','backup job done','SSL VPN connect','cpu 71%','brute-force blocked','PDO prepared','snapshot ok','integrity check'];
+  let t=0;const draw=()=>{t++;if(t%8===0){L.push({s:src[Math.random()*src.length|0],m:msg[Math.random()*msg.length|0],l:Math.random()<.12?'#F87171':Math.random()<.3?'#FB923C':'#4ADE80'});if(L.length>19)L.shift()}
+    g.fillStyle='#04070F';g.fillRect(0,0,w,h);g.fillStyle='#22D3EE';g.font='600 14px Prompt, sans-serif';g.fillText('SIEM LOG STREAM',12,22);g.font='12px Prompt, sans-serif';
+    L.forEach((e,i)=>{g.fillStyle=e.l;g.fillText('▸',12,46+i*14);g.fillStyle='#BFE8F2';g.fillText(e.s.padEnd(10)+e.m,28,46+i*14)});tex.needsUpdate=true};
+  screens.push(draw);draw();return tex}
+const labels=[];
+function labelSprite(text,color='#22D3EE',sub=''){
+  const c=mkCanvas(256,96),g=c.getContext('2d');const tex=new THREE.CanvasTexture(c);
+  const draw=()=>{g.clearRect(0,0,256,96);g.fillStyle='rgba(5,9,18,.75)';g.beginPath();g.roundRect?g.roundRect(8,8,240,80,14):g.rect(8,8,240,80);g.fill();g.strokeStyle=color;g.lineWidth=2;g.stroke();
+    g.fillStyle=color;g.font='600 24px Prompt, sans-serif';g.textAlign='center';g.fillText(text,128,44);g.fillStyle='#8A96B3';g.font='300 16px Prompt, sans-serif';g.fillText(sub,128,72);tex.needsUpdate=true};
+  draw();labels.push(draw);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));sp.scale.set(3.2,1.2,1);return sp}
+if(document.fonts){Promise.all(['300 16px Prompt','400 12px Prompt','600 24px Prompt'].map(f=>document.fonts.load(f))).then(()=>{labels.forEach(d=>d());screens.forEach(d=>d())}).catch(()=>{});
+  document.fonts.ready.then(()=>{labels.forEach(d=>d());screens.forEach(d=>d())})}
+
+/* ---------- furniture builders ---------- */
+const matDesk=new THREE.MeshStandardMaterial({color:0x1B2740,roughness:.6,metalness:.3});
+const matDark=new THREE.MeshStandardMaterial({color:0x0D1426,roughness:.5,metalness:.5});
+const matChair=new THREE.MeshStandardMaterial({color:0x151E33,roughness:.7});
+function box(w,h,d,m,x,y,z,parent=S){const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);b.position.set(x,y,z);b.castShadow=b.receiveShadow=true;parent.add(b);return b}
+function monitor(tex,w,h,x,y,z,ry,parent){const g=new THREE.Group();g.position.set(x,y,z);g.rotation.y=ry;
+  box(w+.12,h+.12,.08,matDark,0,0,0,g);const s=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:tex}));s.position.z=.05;g.add(s);
+  const gl=new THREE.PointLight(0x22D3EE,.35,4);gl.position.set(0,0,.6);g.add(gl);parent.add(g);return g}
+function desk(x,z,ry,tex,parent=S){const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=ry;
+  box(2.6,.08,1.2,matDesk,0,1.2,0,g);box(.08,1.2,1.1,matDark,-1.2,.6,0,g);box(.08,1.2,1.1,matDark,1.2,.6,0,g);
+  const strip=new THREE.Mesh(new THREE.BoxGeometry(2.5,.03,.03),new THREE.MeshBasicMaterial({color:C.cyan}));strip.position.set(0,1.17,.58);g.add(strip);
+  monitor(tex,1.3,.8,0,1.78,-.4,0,g);box(.5,.03,.18,matDark,0,1.25,.15,g);
+  // chair
+  box(.6,.08,.6,matChair,0,.65,.9,g);box(.6,.8,.08,matChair,0,1.05,1.2,g);box(.08,.6,.08,matDark,0,.32,.9,g);
+  parent.add(g);return g}
+
+/* ---------- characters ---------- */
+const people=[];
+function person(o){const g=new THREE.Group();const c=o.color;const isAI=o.ai;
+  const skin=new THREE.MeshStandardMaterial({color:isAI?c:0xE8C4A0,emissive:isAI?c:0x000000,emissiveIntensity:isAI?.5:0,roughness:.6,transparent:isAI,opacity:isAI?.85:1});
+  const cloth=new THREE.MeshStandardMaterial({color:isAI?0x0A1424:o.shirt||0x2B3A5A,emissive:isAI?c:0,emissiveIntensity:isAI?.25:0,roughness:.7,transparent:isAI,opacity:isAI?.85:1});
+  const body=new THREE.Mesh(THREE.CapsuleGeometry?new THREE.CapsuleGeometry(.28,.55,4,10):new THREE.CylinderGeometry(.28,.28,.9,12),cloth);body.position.y=1.0;body.castShadow=true;g.add(body);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.24,18,18),skin);head.position.y=1.72;head.castShadow=true;g.add(head);
+  if(isAI){const halo=new THREE.Mesh(new THREE.TorusGeometry(.32,.025,8,40),new THREE.MeshBasicMaterial({color:c}));halo.rotation.x=Math.PI/2;halo.position.y=2.08;g.add(halo);g.userData.halo=halo;
+    const vis=new THREE.Mesh(new THREE.BoxGeometry(.4,.08,.12),new THREE.MeshBasicMaterial({color:0xffffff}));vis.position.set(0,1.74,.2);g.add(vis);}
+  else{const hair=new THREE.Mesh(new THREE.SphereGeometry(.25,18,18,0,Math.PI*2,0,Math.PI/2.2),new THREE.MeshStandardMaterial({color:o.hair||0x1A1410}));hair.position.y=1.76;g.add(hair);}
+  for(const s of[-1,1]){const arm=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,.55,8),cloth);arm.position.set(s*.36,1.05,.1);arm.rotation.z=s*.25;arm.rotation.x=-.9;g.add(arm);(g.userData.arms=g.userData.arms||[]).push(arm)}
+  g.position.set(o.x,o.sit?-.45:0,o.z);g.rotation.y=o.ry||0;
+  const lab=labelSprite(o.name,isAI?'#'+c.toString(16).padStart(6,'0'):'#E6ECF8',o.role);lab.position.y=2.75;g.add(lab);
+  g.userData.info=o;g.userData.t=Math.random()*10;S.add(g);people.push(g);return g}
+
+/* ================= ZONE 1: DEV FLOOR (left) ================= */
+const devTex=[codeScreen(),codeScreen(512,320,'#A78BFA'),codeScreen(512,320,'#4ADE80'),codeScreen(512,320,'#FB923C')];
+const devSpots=[[-22,2],[-17,2],[-22,8],[-17,8]];
+devSpots.forEach((p,i)=>desk(p[0],p[1],0,devTex[i]));
+person({name:'ไพโรจน์',role:'CTO · Architect',x:-22,z:3.1,ry:Math.PI,shirt:0x1F3A5F,sit:true});
+person({name:'นัท',role:'Full-stack PHP',x:-17,z:3.1,ry:Math.PI,shirt:0x3B2F5A,hair:0x3A2A1A,sit:true});
+person({name:'เมย์',role:'UX / Frontend',x:-22,z:9.1,ry:Math.PI,shirt:0x5A2F3B,hair:0x2A1A10,sit:true});
+person({name:'ต้น',role:'Infra / Network',x:-17,z:9.1,ry:Math.PI,shirt:0x2F4A3B,sit:true});
+// zone sign
+const devSign=labelSprite('DEV FLOOR','#A78BFA','PHP 8 · MySQL · Tailwind');devSign.position.set(-19.5,5,5);devSign.scale.set(6,2.2,1);S.add(devSign);
+
+/* ================= ZONE 2: AGENT TEAM (center-left arc) ================= */
+const agentsDef=[
+ {id:'planner',name:'Planner',role:'วางแผน / แตก Task',color:C.cyan,task:'สร้าง spec โมดูล HR Payroll',p:72},
+ {id:'coder',name:'Coder',role:'เขียน PHP/MySQL',color:C.green,task:'app/Controllers/PayrollController.php',p:48},
+ {id:'reviewer',name:'Reviewer',role:'Code Review / Security',color:C.orange,task:'ตรวจ CSRF + PDO prepared',p:91},
+ {id:'tester',name:'Tester',role:'Unit / UAT',role2:'',color:C.purple,task:'run 128 tests · 126 pass',p:63},
+ {id:'devops',name:'DevOps',role:'Deploy / Monitor',color:C.pink,task:'build ZIP v1.4.2 → staging',p:27},
+];
+const agentTex=[codeScreen(512,320,'#22D3EE'),codeScreen(512,320,'#4ADE80'),codeScreen(512,320,'#FB923C'),chartScreen('TEST COVERAGE %','#A78BFA'),logScreen()];
+const agentNodes=[];
+agentsDef.forEach((a,i)=>{const ang=-Math.PI/2+(i-2)*.42;const r=7.5;const x=-4+Math.cos(ang)*r*0,z=-9+i*3.4; // row
+  const dk=desk(-6,-14+i*3.6,Math.PI/2,agentTex[i]);
+  const p=person({name:a.name,role:a.role,x:-6-1.1,z:-14+i*3.6,ry:-Math.PI/2,ai:true,color:a.color,sit:true});p.userData.agent=a;agentNodes.push(p);});
+const agentSign=labelSprite('AGENT TEAM','#22D3EE','Claude Code · multi-agent');agentSign.position.set(-7,5.2,-7);agentSign.scale.set(6,2.2,1);S.add(agentSign);
+// data links between agents (glowing tubes)
+const linkMat=new THREE.LineBasicMaterial({color:C.cyan,transparent:true,opacity:.5});
+const linkPts=agentNodes.map(n=>new THREE.Vector3(n.position.x-1,2.2,n.position.z));
+S.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(linkPts),linkMat));
+// packets travelling along links
+const packets=[];for(let i=0;i<8;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(.09,8,8),new THREE.MeshBasicMaterial({color:i%2?C.orange:C.cyan}));m.userData.u=i/8;S.add(m);packets.push(m)}
+
+/* ================= ZONE 3: AI CORE (center) ================= */
+const core=new THREE.Group();core.position.set(4,3.2,-3);S.add(core);
+const coreOuter=new THREE.Mesh(new THREE.IcosahedronGeometry(2.2,1),new THREE.MeshBasicMaterial({color:C.cyan,wireframe:true,transparent:true,opacity:.5}));core.add(coreOuter);
+const coreInner=new THREE.Mesh(new THREE.IcosahedronGeometry(1.1,0),new THREE.MeshStandardMaterial({color:C.orange,emissive:C.orange,emissiveIntensity:1.2}));core.add(coreInner);
+for(let i=0;i<3;i++){const r=new THREE.Mesh(new THREE.TorusGeometry(3+i*.5,.04,8,100),new THREE.MeshBasicMaterial({color:i%2?C.orange:C.cyan,transparent:true,opacity:.6}));r.rotation.x=Math.PI/2.5+i*.4;r.rotation.y=i*.7;r.userData.i=i;core.add(r);core.userData.rings=(core.userData.rings||[]).concat(r)}
+const pedestal=new THREE.Mesh(new THREE.CylinderGeometry(2.8,3.2,.3,32),new THREE.MeshStandardMaterial({color:0x0D1426,emissive:C.cyan,emissiveIntensity:.25,metalness:.6}));pedestal.position.set(4,.15,-3);S.add(pedestal);
+const coreLight=neon(C.orange,4,3.5,-3,2,14);
+const coreSign=labelSprite('AI CORE','#FB923C','orchestrator · RAG · memory');coreSign.position.set(4,7,-3);coreSign.scale.set(6,2.2,1);S.add(coreSign);
+
+/* ================= ZONE 4: SOC CONTROL ROOM (right/back) ================= */
+const socG=new THREE.Group();socG.position.set(18,0,-6);S.add(socG);
+// raised platform
+box(22,.3,18,new THREE.MeshStandardMaterial({color:0x0B1222,metalness:.5,roughness:.5}),0,.15,0,socG);
+const edge=new THREE.Mesh(new THREE.BoxGeometry(22.2,.04,.06),new THREE.MeshBasicMaterial({color:C.cyan}));edge.position.set(0,.32,9.03);socG.add(edge);
+// curved video wall
+const wallTex=[mapScreen(),chartScreen('NETWORK THROUGHPUT Gbps','#22D3EE'),chartScreen('CPU · PROXMOX CLUSTER','#FB923C'),logScreen(),chartScreen('FAILED LOGINS / MIN','#F87171'),chartScreen('BACKUP JOBS · VEEAM','#4ADE80')];
+const bigMain=monitor(wallTex[0],8,4,0,3.6,-8,0,socG);
+monitor(wallTex[1],3.6,2,-6.2,4.7,-7.2,.35,socG);monitor(wallTex[2],3.6,2,-6.2,2.4,-7.2,.35,socG);
+monitor(wallTex[3],3.6,2,6.2,4.7,-7.2,-.35,socG);monitor(wallTex[4],3.6,2,6.2,2.4,-7.2,-.35,socG);
+monitor(wallTex[5],8,1.2,0,6.4,-8,0,socG);
+// wall frame glow
+const frameL=new THREE.Mesh(new THREE.BoxGeometry(.06,7.5,.06),new THREE.MeshBasicMaterial({color:C.cyan}));frameL.position.set(-8.4,3.9,-7);socG.add(frameL);
+const frameR=frameL.clone();frameR.position.x=8.4;socG.add(frameR);
+// operator consoles (arc)
+const opTex=[chartScreen('ALERT QUEUE','#FB923C'),logScreen(),chartScreen('LATENCY ms','#22D3EE')];
+[[-4,1,.35],[0,2,0],[4,1,-.35]].forEach((p,i)=>desk(p[0],p[1],p[2],opTex[i],socG));
+person({name:'บอส',role:'SOC Lead',x:18,z:-6+2+1.1,ry:Math.PI,shirt:0x1F2F4F,sit:true});
+person({name:'Sentinel',role:'AI Threat Hunter',x:14,z:-6+1+1.1,ry:Math.PI+.35,ai:true,color:C.red,sit:true});
+person({name:'ฟ้า',role:'Analyst L2',x:22,z:-6+1+1.1,ry:Math.PI-.35,shirt:0x3F2F5F,hair:0x4A2A1A,sit:true});
+// standing engineer pointing at wall
+person({name:'Guardian',role:'AI Compliance ISO 27001',x:26,z:-8,ry:-Math.PI/2.5,ai:true,color:C.yellow});
+const socSign=labelSprite('SOC CONTROL','#F87171','Wazuh · FortiGate · Zabbix');socSign.position.set(18,8.6,-14);socSign.scale.set(7,2.6,1);S.add(socSign);
+// server rack row
+for(let i=0;i<4;i++){const r=box(1,2.4,.8,matDark,24+i*1.3,1.2,-16,S);for(let k=0;k<6;k++){const led=new THREE.Mesh(new THREE.BoxGeometry(.06,.06,.02),new THREE.MeshBasicMaterial({color:Math.random()<.8?C.green:C.orange}));led.position.set(-.3+k*.12,-1+Math.random()*2,.41);r.add(led);led.userData.blink=Math.random()}}
+
+/* ---------- walls / glass partitions ---------- */
+const glassMat=new THREE.MeshPhysicalMaterial({color:0x22D3EE,transparent:true,opacity:.08,roughness:.1,metalness:.1});
+box(.1,6,24,glassMat,-10,3,-2);box(40,6,.1,glassMat,-1,3,-22);
+
+/* ================= camera ================= */
+const views={
+ over:{pos:[8,22,30],look:[2,2,-4]},
+ dev:{pos:[-19.5,6,16],look:[-19.5,1.5,4]},
+ agent:{pos:[-14,5,-4],look:[-6,1.8,-7]},
+ soc:{pos:[18,5.5,10],look:[18,3.5,-12]},
+ core:{pos:[9,5,4],look:[4,3,-3]},
+};
+let camPos=new THREE.Vector3(...views.over.pos),camLook=new THREE.Vector3(...views.over.look);
+let tPos=camPos.clone(),tLook=camLook.clone();
+cam.position.copy(camPos);
+let orbit={theta:0,phi:0,dist:0,dragging:false,lx:0,ly:0,userTouched:false};
+function goView(k){const v=views[k];tPos.set(...v.pos);tLook.set(...v.look);orbit.userTouched=false;
+  document.querySelectorAll('#cams button').forEach(b=>b.classList.toggle('on',b.dataset.v===k));}
+document.getElementById('cams').addEventListener('click',e=>{const b=e.target.closest('button');if(b){goView(b.dataset.v);autoT=0}});
+// drag orbit around tLook
+cv.addEventListener('pointerdown',e=>{orbit.dragging=true;orbit.lx=e.clientX;orbit.ly=e.clientY;cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointerup',()=>orbit.dragging=false);
+cv.addEventListener('pointermove',e=>{mouse.x=(e.clientX/innerWidth)*2-1;mouse.y=-(e.clientY/innerHeight)*2+1;
+  if(!orbit.dragging)return;const dx=(e.clientX-orbit.lx)/innerWidth,dy=(e.clientY-orbit.ly)/innerHeight;orbit.lx=e.clientX;orbit.ly=e.clientY;
+  const off=tPos.clone().sub(tLook);const sph=new THREE.Spherical().setFromVector3(off);sph.theta-=dx*3;sph.phi=Math.max(.15,Math.min(1.45,sph.phi+dy*2));tPos.copy(tLook).add(new THREE.Vector3().setFromSpherical(sph));autoT=0;});
+cv.addEventListener('wheel',e=>{e.preventDefault();const off=tPos.clone().sub(tLook);const l=off.length()*(1+Math.sign(e.deltaY)*.08);off.setLength(Math.max(4,Math.min(60,l)));tPos.copy(tLook).add(off);autoT=0},{passive:false});
+
+/* ---------- raycast tooltip ---------- */
+const ray=new THREE.Raycaster(),mouse=new THREE.Vector2(-9,-9);const tip=document.getElementById('tip');let hovered=null;
+cv.addEventListener('click',()=>{if(hovered){const i=hovered.userData.info;tLook.set(hovered.position.x,1.6,hovered.position.z);const off=tPos.clone().sub(tLook).setLength(6);tPos.copy(tLook).add(off);autoT=0;addLog(`<span class="t">[focus]</span> ${i.name} — ${i.role}`)}});
+
+/* ---------- HUD: agents ---------- */
+const agEl=document.getElementById('agents');
+agentsDef.forEach((a,i)=>{const d=document.createElement('div');d.className='agent';d.dataset.i=i;const hex='#'+a.color.toString(16).padStart(6,'0');
+  d.innerHTML=`<div class="av" style="background:${hex}">${a.name[0]}</div><div><b>${a.name} <small style="color:var(--muted);font-weight:300">· ${a.role}</small></b><span id="at${i}">${a.task}</span><div class="bar"><i id="ab${i}" style="width:${a.p}%;background:${hex}"></i></div></div>`;
+  d.addEventListener('click',()=>{document.querySelectorAll('.agent').forEach(x=>x.classList.remove('sel'));d.classList.add('sel');const n=agentNodes[i];tLook.set(n.position.x,1.8,n.position.z);tPos.set(n.position.x-6,3.5,n.position.z+2);autoT=0;addLog(`<span class="t">[agent]</span> ${a.name}: ${a.task}`)});agEl.appendChild(d)});
+const tasks={planner:['แตก task โมดูล Leave','ออกแบบ ERD payroll','จัดลำดับ sprint 14'],coder:['PayrollController.php','models/Employee.php','api/leave.php (PDO)'],reviewer:['ตรวจ CSRF token flow','scan SQLi / XSS','review RBAC middleware'],tester:['run 128 tests · 127 pass','UAT สลิปเงินเดือน','regression suite'],devops:['build ZIP v1.4.2','deploy → staging','health check 200 OK']};
+setInterval(()=>{agentsDef.forEach((a,i)=>{a.p=(a.p+3+Math.random()*6)%100;if(a.p<9){a.task=tasks[a.id][Math.random()*3|0];document.getElementById('at'+i).textContent=a.task;addLog(`<span class="ok">[${a.name}]</span> เริ่มงาน: ${a.task}`)}document.getElementById('ab'+i).style.width=a.p+'%'})},1800);
+
+/* ---------- HUD: SOC + log ---------- */
+const logEl=document.getElementById('log');const logs=[];
+function addLog(h){logs.unshift(`<div><span class="t">${new Date().toLocaleTimeString('th-TH')}</span> ${h}</div>`);if(logs.length>5)logs.pop();logEl.innerHTML=logs.join('')}
+const socMsgs=[['ok','FortiGate: SSL-VPN session established (user: pairoj)'],['wn','Wazuh: 5 failed logins from 203.0.113.42'],['er','Wazuh: brute-force detected → IP blocked'],['ok','Veeam: backup job HR-DB completed (12.4 GB)'],['ok','Zabbix: Proxmox node-02 CPU back to normal'],['wn','Nginx: 429 rate limit on /api/login'],['ok','MySQL: slow query log clean'],['ok','ISO 27001: control A.8.16 evidence collected']];
+let k1=1240,k2=7,k3=312;
+setInterval(()=>{k1=Math.round(1100+Math.random()*400);k2=Math.max(0,k2+(Math.random()<.5?1:-1));k3+=Math.random()<.4?1:0;
+  document.getElementById('k1').textContent=k1.toLocaleString();document.getElementById('k2').textContent=k2;document.getElementById('k3').textContent=k3;
+  const lvl=k2>10?['HIGH',70,'er']:k2>5?['MODERATE',35,'wn']:['LOW',12,'ok'];document.getElementById('tl').textContent=lvl[0];document.getElementById('tl').className=lvl[2];document.getElementById('tbar').style.setProperty('--p',lvl[1]+'%');
+  const m=socMsgs[Math.random()*socMsgs.length|0];addLog(`<span class="${m[0]}">[SOC]</span> ${m[1]}`)},2600);
+addLog('<span class="t">[system]</span> BUGpairoj Virtual Office online · 4 staff · 7 AI agents · SOC 24×7');
+setInterval(()=>document.getElementById('clk').textContent=new Date().toLocaleTimeString('th-TH')+' · BKK',1000);
+
+/* ================= loop ================= */
+let autoT=0;const tour=['over','dev','agent','core','soc'];let tourI=0;
+function resize(){R.setSize(innerWidth,innerHeight,false);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}addEventListener('resize',resize);resize();
+const clock=new THREE.Clock();let frame=0;
+function loop(){const dt=Math.min(clock.getDelta(),.05);const t=clock.elapsedTime;frame++;
+  // auto tour every 14s if idle
+  if(!reduce){autoT+=dt;if(autoT>14){autoT=0;tourI=(tourI+1)%tour.length;goView(tour[tourI])}}
+  camPos.lerp(tPos,.04);camLook.lerp(tLook,.04);cam.position.copy(camPos);cam.lookAt(camLook);
+  if(!reduce){
+    core.rotation.y=t*.4;coreInner.rotation.x=t*.9;coreInner.rotation.y=-t*.7;coreOuter.rotation.x=t*.2;core.userData.rings.forEach(r=>r.rotation.z=t*(.5+r.userData.i*.2));core.position.y=3.2+Math.sin(t*1.2)*.25;coreLight.intensity=1.6+Math.sin(t*3)*.5;
+    people.forEach(p=>{const u=p.userData;u.t+=dt;p.position.y=(u.info.sit?-.45:0)+Math.sin(u.t*2)*.025;if(u.halo){u.halo.rotation.z=u.t*2;u.halo.position.y=2.08+Math.sin(u.t*3)*.05}
+      if(u.arms)u.arms.forEach((a,i)=>a.rotation.x=-.9+Math.sin(u.t*9+i*2)*.12)});
+    packets.forEach(p=>{p.userData.u=(p.userData.u+dt*.12)%1;const n=linkPts.length-1,s=p.userData.u*n,i=Math.floor(s),f=s-i;p.position.lerpVectors(linkPts[i],linkPts[Math.min(i+1,n)],f)});
+    if(frame%3===0)screens.forEach(d=>d());
+  }
+  // hover
+  if(frame%2===0){ray.setFromCamera(mouse,cam);const hits=ray.intersectObjects(people,true);const h=hits[0]?hits[0].object:null;let g=h;while(g&&!g.userData.info)g=g.parent;
+    if(g!==hovered){hovered=g;if(g){const i=g.userData.info;tip.querySelector('b').textContent=i.name;tip.querySelector('span').textContent=(i.ai?'AI AGENT · ':'STAFF · ')+i.role;tip.style.opacity=1;cv.style.cursor='pointer'}else{tip.style.opacity=0;cv.style.cursor=''}}
+    if(hovered){const v=hovered.position.clone();v.y+=2.3;v.project(cam);tip.style.left=((v.x+1)/2*innerWidth)+'px';tip.style.top=((1-v.y)/2*innerHeight)+'px'}}
+  R.render(S,cam);requestAnimationFrame(loop)}
+loop();
+})();
+</script>
+
+</body></html>
